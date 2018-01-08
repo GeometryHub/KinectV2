@@ -1,0 +1,12 @@
+material SimplePoint
+{
+    technique
+    {
+        pass
+        {
+            //lighting off
+            point_size 2
+            //color 0.4 0.4 0
+        }
+    }
+}
