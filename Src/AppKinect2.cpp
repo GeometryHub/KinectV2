@@ -5,6 +5,7 @@
 
 ====================================================================================================*/
 #include "AppKinect2.h"
+#include "ConsolidateGrid.h"
 #include <process.h>
 #include <iostream>
 
@@ -257,7 +258,7 @@ namespace GHB
         }
         if (mDepthCountAcc % 6 == 0)
         {
-            //GPP::ConsolidateGrid::CalculateGridNormal(pointCloud);
+            GPP::ConsolidateGrid::CalculateGridNormal(pointCloud);
             RenderPointCloud(pointCloud);
         }
         mDepthCountAcc++;

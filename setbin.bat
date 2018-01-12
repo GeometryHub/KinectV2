@@ -1,4 +1,5 @@
-xcopy /y .\Dependencies\BasicGeometryLib\bin\basicgeometrylib.dll .\Build\bin\Release\
+xcopy /y .\Dependencies\BGL\bin\bgl.dll .\Build\bin\Release\
+xcopy /y .\Dependencies\BGL\bin\hpgl.dll .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\bin\OgreMain.dll .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\bin\zlib.dll .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\bin\OIS.dll .\Build\bin\Release\
@@ -7,8 +8,11 @@ xcopy /y .\Dependencies\Kinect2\bin\Kinect20.dll .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\config\release\plugins.cfg .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\config\ogre.cfg .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\media\Point.material .\Build\bin\Release\media\
+xcopy /y .\bin\Release\KinectV2.exe .\Build\bin\Release\
+xcopy /y .\bin\Release\scan.bat .\Build\bin\Release\
 
-xcopy /y .\Dependencies\BasicGeometryLib\bin\basicgeometrylib_d.dll .\Build\bin\Debug\
+xcopy /y .\Dependencies\BGL\bin\bgl_d.dll .\Build\bin\Debug\
+xcopy /y .\Dependencies\BGL\bin\hpgl_d.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\bin\OgreMain_d.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\bin\zlib.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\bin\OIS_d.dll .\Build\bin\Debug\
@@ -17,3 +21,5 @@ xcopy /y .\Dependencies\Kinect2\bin\Kinect20.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\config\debug\plugins_d.cfg .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\config\ogre.cfg .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\media\Point.material .\Build\bin\Debug\media\
+xcopy /y .\bin\Debug\KinectV2.exe .\Build\bin\Debug\
+xcopy /y .\bin\Debug\scan.bat .\Build\bin\Debug\
