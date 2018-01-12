@@ -6,7 +6,6 @@
 ====================================================================================================*/
 #include "AppKinect2.h"
 #include <process.h>
-#include "ToolKit.h"
 #include <iostream>
 
 namespace GHB
