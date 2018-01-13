@@ -45,7 +45,9 @@ namespace GHB
         mDepthTimeAcc(0),
         mIsScanDepth(false),
         mScanedDepthList(),
-        mMutex()
+        mMutex(),
+        mBBoxMin(-5, -5, 0.5),
+        mBBoxMax(5, 5, 5)
     {
     }
 
@@ -99,6 +101,12 @@ namespace GHB
         return true;
     }
 
+    void AppKinect2::SetBBox(const GPP::Vector3& bboxMin, const GPP::Vector3& bboxMax)
+    {
+        mBBoxMin = bboxMin;
+        mBBoxMax = bboxMax;
+    }
+
     void AppKinect2::ExportDepthData()
     {
         while (mAppRunning)
@@ -120,6 +128,7 @@ namespace GHB
                 mScanedDepthList.pop_front();
                 mExportCountAcc++;
             }
+            curDepth->RemoveOuterBlankGrids();
             GPP::Parser::ExportGridPointCloud(fileName, curDepth);
             GPPFREEPOINTER(curDepth);
         }
@@ -408,7 +417,9 @@ namespace GHB
             for (int wid = 0; wid < mFrameWidth; wid++)
             {
                 const CameraSpacePoint& point = depthPoints.at(hid * mFrameWidth + wid);
-                if (point.Z > 0.1 && point.Z < 5 && point.X > -5 && point.X < 5 && point.Y > -5 && point.Y < 5)
+                if (point.Z > mBBoxMin[2] && point.Z < mBBoxMax[2] && 
+                    point.X > mBBoxMin[0] && point.X < mBBoxMax[0] && 
+                    point.Y > mBBoxMin[1] && point.Y < mBBoxMax[1])
                 {
                     grid->SetGridCoord(wid, hid, GPP::Vector3(point.X, point.Y, point.Z));
                 }

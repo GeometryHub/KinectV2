@@ -10,7 +10,16 @@
 
 int main(int argc, char *argv[])
 {
+    std::cout << "argc==" << argc << std::endl;
     GHB::AppKinect2 app;
+    if (argc == 7)
+    {
+        GPP::Vector3 bboxMin(atof(argv[1]), atof(argv[3]), atof(argv[5]));
+        GPP::Vector3 bboxMax(atof(argv[2]), atof(argv[4]), atof(argv[6]));
+        app.SetBBox(bboxMin, bboxMax);
+        std::cout << " set bbox " << bboxMin[0] << " " << bboxMin[1] << " " << bboxMin[2] <<
+            " " << bboxMax[0] << " " << bboxMax[1] << " " << bboxMax[2] << std::endl;
+    }
     app.Run();
     return 0;
 }

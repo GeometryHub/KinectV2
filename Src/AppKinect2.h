@@ -26,6 +26,7 @@ namespace GHB
         virtual void windowResized(Ogre::RenderWindow* rw);
         virtual bool windowClosing(Ogre::RenderWindow* rw);
 
+        void SetBBox(const GPP::Vector3& bboxMin, const GPP::Vector3& bboxMax);
         void ExportDepthData(void);
 
     private:
@@ -62,5 +63,7 @@ namespace GHB
         bool mIsScanDepth;
         std::deque<std::pair<std::string, GPP::PointCloud*> > mScanedDepthList;
         GPP::Mutex mMutex;
+        GPP::Vector3 mBBoxMin;
+        GPP::Vector3 mBBoxMax;
     };
 }
