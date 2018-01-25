@@ -5,7 +5,6 @@
 
 ====================================================================================================*/
 #include "AppKinect2.h"
-#include "ConsolidateGrid.h"
 #include <process.h>
 #include <iostream>
 
@@ -69,18 +68,10 @@ namespace GHB
         if (arg.key == OIS::KC_S)
         {
             mIsScanDepth = true;
-            if (mpLight)
-            {
-                mpLight->setDiffuseColour(0.753, 0.5, 0.5);
-            }
         }
         else if (arg.key == OIS::KC_V)
         {
             mIsScanDepth = false;
-            if (mpLight)
-            {
-                mpLight->setDiffuseColour(0.09, 0.48627, 0.69);
-            }
         }
         return true;
     }
@@ -191,7 +182,7 @@ namespace GHB
         mpSceneManager->setAmbientLight(Ogre::ColourValue(0.15, 0.15, 0.15));
         mpLight = mpSceneManager->createLight("SimpleLight");
         mpLight->setPosition(0, 0, -20);
-        mpLight->setDiffuseColour(0.09, 0.48627, 0.69);
+        mpLight->setDiffuseColour(0.8, 0.8, 0.8);
         mpLight->setSpecularColour(0.3, 0.3, 0.3);
 
         // Init Kinect2
@@ -267,7 +258,22 @@ namespace GHB
         }
         if (mDepthCountAcc % 6 == 0)
         {
-            GPP::ConsolidateGrid::CalculateGridNormal(pointCloud);
+            int pointCount = pointCloud->GetPointCount();
+            pointCloud->SetHasColor(true);
+            if (mIsScanDepth)
+            {
+                for (int pid = 0; pid < pointCount; pid += 4)
+                {
+                    pointCloud->SetPointColor(pid, GPP::ColorCoding(0.1 + (pointCloud->GetPointCoord(pid)[2] - 0.5) / 8.0));
+                }
+            }
+            else
+            {
+                for (int pid = 0; pid < pointCount; pid += 4)
+                {
+                    pointCloud->SetPointColor(pid, GPP::ColorCoding(0.6 + (pointCloud->GetPointCoord(pid)[2] - 0.5) / 8.0));
+                }
+            }
             RenderPointCloud(pointCloud);
         }
         mDepthCountAcc++;
@@ -321,12 +327,12 @@ namespace GHB
         }
         int pointCount = pointCloud->GetPointCount();
         manualObj->begin("SimplePoint", Ogre::RenderOperation::OT_POINT_LIST);
-        for (int pid = 0; pid < pointCount; pid += 3)
+        for (int pid = 0; pid < pointCount; pid += 4)
         {
             GPP::Vector3 coord = pointCloud->GetPointCoord(pid);
-            GPP::Vector3 normal = pointCloud->GetPointNormal(pid);
+            GPP::Vector3 color = pointCloud->GetPointColor(pid);
             manualObj->position(coord[0], coord[1], coord[2]);
-            manualObj->normal(normal[0], normal[1], normal[2]);
+            manualObj->colour(color[0], color[1], color[2]);
         }
         manualObj->end();
     }

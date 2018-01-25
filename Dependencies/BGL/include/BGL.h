@@ -12,4 +12,5 @@
 #include "ThreadPool.h"
 #include "ToolLog.h"
 #include "Vector3.h"
+#include "BglToolKit.h"
 

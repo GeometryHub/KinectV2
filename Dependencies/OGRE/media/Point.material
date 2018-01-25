@@ -4,7 +4,7 @@ material SimplePoint
     {
         pass
         {
-            //lighting off
+            lighting off
             point_size 2
             //color 0.4 0.4 0
         }

@@ -1,5 +1,4 @@
 xcopy /y .\Dependencies\BGL\bin\bgl.dll .\Build\bin\Release\
-xcopy /y .\Dependencies\BGL\bin\hpgl.dll .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\bin\OgreMain.dll .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\bin\zlib.dll .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\bin\OIS.dll .\Build\bin\Release\
@@ -12,7 +11,6 @@ xcopy /y .\bin\Release\KinectV2.exe .\Build\bin\Release\
 xcopy /y .\bin\Release\scan.bat .\Build\bin\Release\
 
 xcopy /y .\Dependencies\BGL\bin\bgl_d.dll .\Build\bin\Debug\
-xcopy /y .\Dependencies\BGL\bin\hpgl_d.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\bin\OgreMain_d.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\bin\zlib.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\bin\OIS_d.dll .\Build\bin\Debug\
