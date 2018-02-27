@@ -19,8 +19,12 @@ namespace GPP
         virtual void SetPointCoord(Int pid, const Vector3& coord) = 0;
         virtual Vector3 GetPointNormal(Int pid) const = 0;
         virtual void SetPointNormal(Int pid, const Vector3& normal) = 0;
+        virtual Vector3 GetPointColor(Int pid) const = 0;
+        virtual void SetPointColor(Int pid, const Vector3& color) = 0;
         virtual bool HasNormal() const = 0;
         virtual void SetHasNormal(bool has) = 0;
+        virtual bool HasColor(void) const = 0;
+        virtual void SetHasColor(bool has) = 0;
         
         // Return inserted point id
         virtual Int InsertPoint(const Vector3& coord) = 0;

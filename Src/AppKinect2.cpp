@@ -37,8 +37,10 @@ namespace GHB
         mpMultiSourceFrameReader(NULL),
         mpCoordinateMapper(NULL),
         mMSEvent(NULL),
-        mFrameWidth(-1),
-        mFrameHeight(-1),
+        mDepthWidth(512),
+        mDepthHeight(424),
+        mColorWidth(1920),
+        mColorHeight(1080),
         mExportCountAcc(0),
         mDepthCountAcc(0),
         mDepthTimeAcc(0),
@@ -46,8 +48,10 @@ namespace GHB
         mScanedDepthList(),
         mMutex(),
         mBBoxMin(-5, -5, 0.5),
-        mBBoxMax(5, 5, 5)
+        mBBoxMax(5, 5, 5),
+        mpColorBuffer(NULL)
     {
+        mpColorBuffer = new RGBQUAD[mColorWidth * mColorHeight];
     }
 
     void AppKinect2::Run()
@@ -202,7 +206,7 @@ namespace GHB
             return;
         }
         if (!SUCCEEDED(mpKinectSensor->OpenMultiSourceFrameReader(
-            FrameSourceTypes::FrameSourceTypes_Depth,
+            FrameSourceTypes::FrameSourceTypes_Depth | FrameSourceTypes::FrameSourceTypes_Color,
             &mpMultiSourceFrameReader)))
         {
             GPPInfo << "Kinect: kinect OpenMultiSourceFrameReader failed" << std::endl;
@@ -251,14 +255,14 @@ namespace GHB
         {
             return;
         }
-        if (pointCloud->GetValidGridCount() < 10)
+        if (pointCloud->GetPointCount() < 10)
         {
             GPPFREEPOINTER(pointCloud);
             return;
         }
         if (mDepthCountAcc % 6 == 0)
         {
-            int pointCount = pointCloud->GetPointCount();
+            /*int pointCount = pointCloud->GetPointCount();
             pointCloud->SetHasColor(true);
             if (mIsScanDepth)
             {
@@ -273,7 +277,7 @@ namespace GHB
                 {
                     pointCloud->SetPointColor(pid, GPP::ColorCoding(0.6 + (pointCloud->GetPointCoord(pid)[2] - 0.5) / 8.0));
                 }
-            }
+            }*/
             RenderPointCloud(pointCloud);
         }
         mDepthCountAcc++;
@@ -357,6 +361,7 @@ namespace GHB
         IMultiSourceFrameArrivedEventArgs* pMultiArgs = NULL;
         if (!SUCCEEDED(mpMultiSourceFrameReader->GetMultiSourceFrameArrivedEventData(mMSEvent, &pMultiArgs)))
         {
+            //GPPInfo << "CaptureOneDepth: GetMultiSourceFrameArrivedEventData failed" << std::endl;
             return NULL;
         }
         IMultiSourceFrameReference* pFrameRef = NULL;
@@ -371,6 +376,7 @@ namespace GHB
             GPPInfo << "CaptureOneDepth: pFrameRef->AcquireFrame failed" << std::endl;
             return NULL;
         }
+
         IDepthFrameReference* pDepthRef = NULL;
         if (!SUCCEEDED(pMultiSourceFrame->get_DepthFrameReference(&pDepthRef)))
         {
@@ -380,6 +386,7 @@ namespace GHB
         IDepthFrame* pDepthFrame = NULL;
         if (!SUCCEEDED(pDepthRef->AcquireFrame(&pDepthFrame)))
         {
+            GPPInfo << "CaptureOneDepth: pDepthRef->AcquireFrame failed" << std::endl;
             return NULL;
         }
         UINT nDepthSize = 0;
@@ -389,23 +396,6 @@ namespace GHB
             GPPInfo << "CaptureOneDepth: pDepthFrame->AccessUnderlyingBuffer failed" << std::endl;
             return NULL;
         }
-        if (mFrameWidth < 0)
-        {
-            IFrameDescription* frameDescription = NULL;
-            if (!SUCCEEDED(pDepthFrame->get_FrameDescription(&frameDescription)))
-            {
-                return NULL;
-            }
-            if (!SUCCEEDED(frameDescription->get_Width(&mFrameWidth)))
-            {
-                return NULL;
-            }
-            if (!SUCCEEDED(frameDescription->get_Height(&mFrameHeight)))
-            {
-                return NULL;
-            }
-            GPPInfo << "Frame size: " << mFrameWidth << " " << mFrameHeight << std::endl;
-        }
         std::vector<CameraSpacePoint> depthPoints(nDepthSize);
         if (!SUCCEEDED(mpCoordinateMapper->MapDepthFrameToCameraSpace(nDepthSize, pDepthBuffer, 
             nDepthSize, &(depthPoints.at(0)))))
@@ -413,21 +403,84 @@ namespace GHB
             GPPInfo << "CaptureOneDepth: mpCoordinateMapper->MapDepthFrameToCameraSpace failed" << std::endl;
             return NULL;
         }
+        std::vector<ColorSpacePoint> depth2ColorMaps(nDepthSize);
+        if (!SUCCEEDED(mpCoordinateMapper->MapDepthFrameToColorSpace(nDepthSize, pDepthBuffer,
+            nDepthSize, &(depth2ColorMaps.at(0)))))
+        {
+            GPPInfo << "CaptureOneDepth: mpCoordinateMapper->MapDepthFrameToColorSpace failed" << std::endl;
+            return NULL;
+        }
+
+        IColorFrameReference* pColorRef = NULL;
+        if (!SUCCEEDED(pMultiSourceFrame->get_ColorFrameReference(&pColorRef)))
+        {
+            GPPInfo << "CaptureOneDepth: pMultiSourceFrame->get_DepthFrameReference failed" << std::endl;
+            return NULL;
+        }
+        IColorFrame* pColorFrame = NULL;
+        if (!SUCCEEDED(pColorRef->AcquireFrame(&pColorFrame)))
+        {
+            GPPInfo << "CaptureOneDepth: pColorRef->AcquireFrame failed" << std::endl;
+            return NULL;
+        }
+        ColorImageFormat imageFormat = ColorImageFormat_None;
+        if (!SUCCEEDED(pColorFrame->get_RawColorImageFormat(&imageFormat)))
+        {
+            GPPInfo << "CaptureOneDepth: get_RawColorImageFormat failed" << std::endl;
+            return NULL;
+        }
+        UINT nColorSize = 0;
+        RGBQUAD *pColorBuffer = NULL;
+        if (imageFormat == ColorImageFormat_Bgra)
+        {
+            if (!SUCCEEDED(pColorFrame->AccessRawUnderlyingBuffer(&nColorSize, reinterpret_cast<BYTE**>(&pColorBuffer))))
+            {
+                GPPInfo << "CaptureOneDepth: AccessRawUnderlyingBuffer failed" << std::endl;
+                return NULL;
+            }
+        }
+        else if (mpColorBuffer)
+        {
+            pColorBuffer = mpColorBuffer;
+            nColorSize = mColorWidth * mColorHeight * sizeof(RGBQUAD);
+            if (!SUCCEEDED(pColorFrame->CopyConvertedFrameDataToArray(nColorSize, reinterpret_cast<BYTE*>(pColorBuffer), ColorImageFormat_Bgra)))
+            {
+                GPPInfo << "CaptureOneDepth: CopyConvertedFrameDataToArray failed" << std::endl;
+                return NULL;
+            }
+        }
+        else
+        {
+            GPPInfo << "CaptureOneDepth: imageFormat != ColorImageFormat_Bgra" << std::endl;
+            return NULL;
+        }
+
+        SafeRelease(pColorRef);
+        SafeRelease(pColorFrame);
         SafeRelease(pDepthRef);
         SafeRelease(pDepthFrame);
         SafeRelease(pMultiArgs);
         GPP::PointCloud* grid = new GPP::PointCloud;
-        grid->InitGrid(mFrameWidth, mFrameHeight);
-        for (int hid = 0; hid < mFrameHeight; hid++)
+        grid->InitGrid(mDepthWidth, mDepthHeight);
+        grid->SetHasColor(true);
+        for (int hid = 0; hid < mDepthHeight; hid++)
         {
-            for (int wid = 0; wid < mFrameWidth; wid++)
+            for (int wid = 0; wid < mDepthWidth; wid++)
             {
-                const CameraSpacePoint& point = depthPoints.at(hid * mFrameWidth + wid);
+                const CameraSpacePoint& point = depthPoints.at(hid * mDepthWidth + wid);
                 if (point.Z > mBBoxMin[2] && point.Z < mBBoxMax[2] && 
                     point.X > mBBoxMin[0] && point.X < mBBoxMax[0] && 
                     point.Y > mBBoxMin[1] && point.Y < mBBoxMax[1])
                 {
+                    const ColorSpacePoint& colorCoord = depth2ColorMaps.at(hid * mDepthWidth + wid);
+                    if (colorCoord.X < 0 || colorCoord.X >= mColorWidth || colorCoord.Y < 0 || colorCoord.Y >= mColorHeight)
+                    {
+                        continue;
+                    }
                     grid->SetGridCoord(wid, hid, GPP::Vector3(point.X, point.Y, point.Z));
+                    RGBQUAD* pixel = pColorBuffer + (int(colorCoord.Y) * mColorWidth + int(colorCoord.X));
+                    GPP::Color4 color(pixel->rgbRed, pixel->rgbGreen, pixel->rgbBlue);
+                    grid->SetGridColor(wid, hid, GPP::Color4::Color4ToVector3(color));
                 }
             }
         }
@@ -455,5 +508,6 @@ namespace GHB
         {
             mpKinectSensor->Close();
         }
+        GPPFREEARRAY(mpColorBuffer);
     }
 }

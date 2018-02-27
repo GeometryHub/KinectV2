@@ -55,8 +55,10 @@ namespace GHB
         IMultiSourceFrameReader* mpMultiSourceFrameReader;
         ICoordinateMapper*       mpCoordinateMapper;
         WAITABLE_HANDLE mMSEvent;
-        int mFrameWidth;
-        int mFrameHeight;
+        int mDepthWidth;
+        int mDepthHeight;
+        int mColorWidth;
+        int mColorHeight;
         int mExportCountAcc;
         int mDepthCountAcc;
         double mDepthTimeAcc;
@@ -65,5 +67,6 @@ namespace GHB
         GPP::Mutex mMutex;
         GPP::Vector3 mBBoxMin;
         GPP::Vector3 mBBoxMax;
+        RGBQUAD* mpColorBuffer;
     };
 }
