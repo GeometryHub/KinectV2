@@ -410,6 +410,8 @@ namespace GHB
             GPPInfo << "CaptureOneDepth: mpCoordinateMapper->MapDepthFrameToColorSpace failed" << std::endl;
             return NULL;
         }
+        SafeRelease(pDepthRef);
+        SafeRelease(pDepthFrame);
 
         IColorFrameReference* pColorRef = NULL;
         if (!SUCCEEDED(pMultiSourceFrame->get_ColorFrameReference(&pColorRef)))
@@ -454,12 +456,10 @@ namespace GHB
             GPPInfo << "CaptureOneDepth: imageFormat != ColorImageFormat_Bgra" << std::endl;
             return NULL;
         }
-
         SafeRelease(pColorRef);
         SafeRelease(pColorFrame);
-        SafeRelease(pDepthRef);
-        SafeRelease(pDepthFrame);
         SafeRelease(pMultiArgs);
+        
         GPP::PointCloud* grid = new GPP::PointCloud;
         grid->InitGrid(mDepthWidth, mDepthHeight);
         grid->SetHasColor(true);
