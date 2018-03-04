@@ -145,7 +145,7 @@ namespace GHB
 
         if (hasConfig)
         {
-            mpRenderWindow = mpRoot->initialise(true, "VisionPark");
+            mpRenderWindow = mpRoot->initialise(true, "KinectV2");
             mpSceneManager = mpRoot->createSceneManager(Ogre::ST_GENERIC, "MainSceneManager");
             mpMainCamera = mpSceneManager->createCamera("MainCamera");
             mpMainCamera->setProjectionType(Ogre::PT_PERSPECTIVE);
@@ -331,7 +331,7 @@ namespace GHB
         }
         int pointCount = pointCloud->GetPointCount();
         manualObj->begin("SimplePoint", Ogre::RenderOperation::OT_POINT_LIST);
-        for (int pid = 0; pid < pointCount; pid += 4)
+        for (int pid = 0; pid < pointCount; pid += 2)
         {
             GPP::Vector3 coord = pointCloud->GetPointCoord(pid);
             GPP::Vector3 color = pointCloud->GetPointColor(pid);
