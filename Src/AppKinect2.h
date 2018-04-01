@@ -8,6 +8,7 @@
 #include "Ogre.h"
 #include "OIS.h"
 #include "Kinect.h"
+#include "opencv2/opencv.hpp"
 #include "BGL.h"
 #include <deque>
 
@@ -27,7 +28,9 @@ namespace GHB
         virtual bool windowClosing(Ogre::RenderWindow* rw);
 
         void SetBBox(const GPP::Vector3& bboxMin, const GPP::Vector3& bboxMax);
+        void SetImageInterval(int imageInterval);
         void ExportDepthData(void);
+        void ExportImageData(void);
 
     private:
         void Init(void);
@@ -36,7 +39,6 @@ namespace GHB
         void UpdateInputSystem(void);
         void UpdateKinectData(void);
         void RenderPointCloud(const GPP::PointCloud* pointCloud);
-        GPP::PointCloud* CaptureOneDepth(void);
         double GetTime(void);
 
     private:
@@ -64,9 +66,14 @@ namespace GHB
         double mDepthTimeAcc;
         bool mIsScanDepth;
         std::deque<std::pair<std::string, GPP::PointCloud*> > mScanedDepthList;
-        GPP::Mutex mMutex;
+        std::deque<std::pair<std::string, cv::Mat*> > mImageList;
+        std::deque<std::pair<std::string, std::vector<std::pair<short, short> > > > mMapList;
+        GPP::Mutex mDepthMutex;
+        GPP::Mutex mImageMutex;
         GPP::Vector3 mBBoxMin;
         GPP::Vector3 mBBoxMax;
         RGBQUAD* mpColorBuffer;
+        int mImageInterval;
+        int mDepthId;
     };
 }

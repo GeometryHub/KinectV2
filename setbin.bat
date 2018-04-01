@@ -9,6 +9,9 @@ xcopy /y .\Dependencies\OGRE\config\ogre.cfg .\Build\bin\Release\
 xcopy /y .\Dependencies\OGRE\media\Point.material .\Build\bin\Release\media\
 xcopy /y .\bin\Release\KinectV2.exe .\Build\bin\Release\
 xcopy /y .\bin\Release\scan.bat .\Build\bin\Release\
+xcopy /y .\Dependencies\OpenCV\bin\opencv_core247.dll .\Build\bin\Release\
+xcopy /y .\Dependencies\OpenCV\bin\opencv_highgui247.dll .\Build\bin\Release\
+xcopy /y .\Dependencies\OpenCV\bin\opencv_imgproc247.dll .\Build\bin\Release\
 
 xcopy /y .\Dependencies\BGL\bin\bgl_d.dll .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\bin\OgreMain_d.dll .\Build\bin\Debug\
@@ -21,3 +24,6 @@ xcopy /y .\Dependencies\OGRE\config\ogre.cfg .\Build\bin\Debug\
 xcopy /y .\Dependencies\OGRE\media\Point.material .\Build\bin\Debug\media\
 xcopy /y .\bin\Debug\KinectV2.exe .\Build\bin\Debug\
 xcopy /y .\bin\Debug\scan.bat .\Build\bin\Debug\
+xcopy /y .\Dependencies\OpenCV\bin\opencv_core247d.dll .\Build\bin\Debug\
+xcopy /y .\Dependencies\OpenCV\bin\opencv_highgui247d.dll .\Build\bin\Debug\
+xcopy /y .\Dependencies\OpenCV\bin\opencv_imgproc247d.dll .\Build\bin\Debug\

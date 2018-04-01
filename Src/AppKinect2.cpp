@@ -10,7 +10,17 @@
 
 namespace GHB
 {
-    static unsigned __stdcall RunThread(void *arg)
+    template <class Interface>
+    static void SafeRelease(Interface *& pInterfaceToRelease)
+    {
+        if (pInterfaceToRelease)
+        {
+            pInterfaceToRelease->Release();
+            pInterfaceToRelease = NULL;
+        }
+    }
+
+    static unsigned __stdcall RunDepthThread(void *arg)
     {
         AppKinect2* app = (AppKinect2*)arg;
         if (app == NULL)
@@ -18,6 +28,17 @@ namespace GHB
             return 0;
         }
         app->ExportDepthData();
+        return 1;
+    }
+    
+    static unsigned __stdcall RunImageThread(void *arg)
+    {
+        AppKinect2* app = (AppKinect2*)arg;
+        if (app == NULL)
+        {
+            return 0;
+        }
+        app->ExportImageData();
         return 1;
     }
 
@@ -46,10 +67,15 @@ namespace GHB
         mDepthTimeAcc(0),
         mIsScanDepth(false),
         mScanedDepthList(),
-        mMutex(),
+        mImageList(),
+        mMapList(),
+        mDepthMutex(),
+        mImageMutex(),
         mBBoxMin(-5, -5, 0.5),
         mBBoxMax(5, 5, 5),
-        mpColorBuffer(NULL)
+        mpColorBuffer(NULL),
+        mImageInterval(0),
+        mDepthId(0)
     {
         mpColorBuffer = new RGBQUAD[mColorWidth * mColorHeight];
     }
@@ -102,6 +128,11 @@ namespace GHB
         mBBoxMax = bboxMax;
     }
 
+    void AppKinect2::SetImageInterval(int imageInterval)
+    {
+        mImageInterval = imageInterval;
+    }
+
     void AppKinect2::ExportDepthData()
     {
         while (mAppRunning)
@@ -113,7 +144,7 @@ namespace GHB
             std::string fileName;
             GPP::PointCloud* curDepth = NULL;
             {
-                GPP::ScopedLock lock(mMutex);
+                GPP::ScopedLock lock(mDepthMutex);
                 if (mScanedDepthList.empty())
                 {
                     continue;
@@ -126,6 +157,37 @@ namespace GHB
             curDepth->RemoveOuterBlankGrids();
             GPP::Parser::ExportGridPointCloud(fileName, curDepth);
             GPPFREEPOINTER(curDepth);
+        }
+    }
+
+    void AppKinect2::ExportImageData()
+    {
+        while (mAppRunning)
+        {
+            if (mImageList.empty())
+            {
+                continue;
+            }
+            cv::Mat* image;
+            std::vector<std::pair<short, short> > map;
+            std::string imageName, mapName;
+            {
+                GPP::ScopedLock lock(mImageMutex);
+                image = mImageList.at(0).second;
+                imageName = mImageList.at(0).first;
+                mImageList.pop_front();
+                map = mMapList.at(0).second;
+                mapName = mMapList.at(0).first;
+                mMapList.pop_front();
+            }
+            cv::imwrite(imageName, *image);
+            GPPFREEPOINTER(image);
+            std::ofstream mapOut(mapName.c_str());
+            for (std::vector<std::pair<short, short> >::const_iterator itr = map.begin(); itr != map.end(); ++itr)
+            {
+                mapOut << itr->first << " " << itr->second << "\n";
+            }
+            mapOut.close();
         }
     }
 
@@ -217,8 +279,9 @@ namespace GHB
             GPPInfo << "Kinect: kinect SubscribeMultiSourceFrameArrived failed" << std::endl;
             return;
         }
-        _beginthreadex(NULL, 0, RunThread, (void *)this, 0, NULL);
-        _beginthreadex(NULL, 0, RunThread, (void *)this, 0, NULL);
+        _beginthreadex(NULL, 0, RunDepthThread, (void *)this, 0, NULL);
+        _beginthreadex(NULL, 0, RunDepthThread, (void *)this, 0, NULL);
+        _beginthreadex(NULL, 0, RunImageThread, (void *)this, 0, NULL);
     }
 
     void AppKinect2::Update(double timeElapsed)
@@ -250,35 +313,151 @@ namespace GHB
 
     void AppKinect2::UpdateKinectData()
     {
-        GPP::PointCloud* pointCloud = CaptureOneDepth();
-        if (pointCloud == NULL)
+        if (mpMultiSourceFrameReader == NULL)
         {
+            GPPInfo << "CaptureOneDepth: mpMultiSourceFrameReader == NULL" << std::endl;
             return;
         }
-        if (pointCloud->GetPointCount() < 10)
+        IMultiSourceFrameArrivedEventArgs* pMultiArgs = NULL;
+        if (!SUCCEEDED(mpMultiSourceFrameReader->GetMultiSourceFrameArrivedEventData(mMSEvent, &pMultiArgs)))
         {
-            GPPFREEPOINTER(pointCloud);
+            //GPPInfo << "CaptureOneDepth: GetMultiSourceFrameArrivedEventData failed" << std::endl;
+            return;
+        }
+        IMultiSourceFrameReference* pFrameRef = NULL;
+        if (!SUCCEEDED(pMultiArgs->get_FrameReference(&pFrameRef)))
+        {
+            GPPInfo << "CaptureOneDepth: get_FrameReference failed" << std::endl;
+            return;
+        }
+        IMultiSourceFrame* pMultiSourceFrame = NULL;
+        if (!SUCCEEDED(pFrameRef->AcquireFrame(&pMultiSourceFrame)))
+        {
+            GPPInfo << "CaptureOneDepth: pFrameRef->AcquireFrame failed" << std::endl;
+            return;
+        }
+
+        IDepthFrameReference* pDepthRef = NULL;
+        if (!SUCCEEDED(pMultiSourceFrame->get_DepthFrameReference(&pDepthRef)))
+        {
+            GPPInfo << "CaptureOneDepth: pMultiSourceFrame->get_DepthFrameReference failed" << std::endl;
+            return;
+        }
+        IDepthFrame* pDepthFrame = NULL;
+        if (!SUCCEEDED(pDepthRef->AcquireFrame(&pDepthFrame)))
+        {
+            GPPInfo << "CaptureOneDepth: pDepthRef->AcquireFrame failed" << std::endl;
+            return;
+        }
+        UINT nDepthSize = 0;
+        UINT16* pDepthBuffer = NULL;
+        if (!SUCCEEDED(pDepthFrame->AccessUnderlyingBuffer(&nDepthSize, &pDepthBuffer)))
+        {
+            GPPInfo << "CaptureOneDepth: pDepthFrame->AccessUnderlyingBuffer failed" << std::endl;
+            return;
+        }
+        std::vector<CameraSpacePoint> depthPoints(nDepthSize);
+        if (!SUCCEEDED(mpCoordinateMapper->MapDepthFrameToCameraSpace(nDepthSize, pDepthBuffer,
+            nDepthSize, &(depthPoints.at(0)))))
+        {
+            GPPInfo << "CaptureOneDepth: mpCoordinateMapper->MapDepthFrameToCameraSpace failed" << std::endl;
+            return;
+        }
+        std::vector<ColorSpacePoint> depth2ColorMaps(nDepthSize);
+        if (!SUCCEEDED(mpCoordinateMapper->MapDepthFrameToColorSpace(nDepthSize, pDepthBuffer,
+            nDepthSize, &(depth2ColorMaps.at(0)))))
+        {
+            GPPInfo << "CaptureOneDepth: mpCoordinateMapper->MapDepthFrameToColorSpace failed" << std::endl;
+            return;
+        }
+        SafeRelease(pDepthRef);
+        SafeRelease(pDepthFrame);
+
+        IColorFrameReference* pColorRef = NULL;
+        if (!SUCCEEDED(pMultiSourceFrame->get_ColorFrameReference(&pColorRef)))
+        {
+            GPPInfo << "CaptureOneDepth: pMultiSourceFrame->get_DepthFrameReference failed" << std::endl;
+            return;
+        }
+        IColorFrame* pColorFrame = NULL;
+        if (!SUCCEEDED(pColorRef->AcquireFrame(&pColorFrame)))
+        {
+            GPPInfo << "CaptureOneDepth: pColorRef->AcquireFrame failed" << std::endl;
+            return;
+        }
+        ColorImageFormat imageFormat = ColorImageFormat_None;
+        if (!SUCCEEDED(pColorFrame->get_RawColorImageFormat(&imageFormat)))
+        {
+            GPPInfo << "CaptureOneDepth: get_RawColorImageFormat failed" << std::endl;
+            return;
+        }
+        UINT nColorSize = 0;
+        RGBQUAD *pColorBuffer = NULL;
+        if (imageFormat == ColorImageFormat_Bgra)
+        {
+            if (!SUCCEEDED(pColorFrame->AccessRawUnderlyingBuffer(&nColorSize, reinterpret_cast<BYTE**>(&pColorBuffer))))
+            {
+                GPPInfo << "CaptureOneDepth: AccessRawUnderlyingBuffer failed" << std::endl;
+                return;
+            }
+        }
+        else if (mpColorBuffer)
+        {
+            pColorBuffer = mpColorBuffer;
+            nColorSize = mColorWidth * mColorHeight * sizeof(RGBQUAD);
+            if (!SUCCEEDED(pColorFrame->CopyConvertedFrameDataToArray(nColorSize, reinterpret_cast<BYTE*>(pColorBuffer), ColorImageFormat_Bgra)))
+            {
+                GPPInfo << "CaptureOneDepth: CopyConvertedFrameDataToArray failed" << std::endl;
+                return;
+            }
+        }
+        else
+        {
+            GPPInfo << "CaptureOneDepth: imageFormat != ColorImageFormat_Bgra" << std::endl;
+            return;
+        }
+        SafeRelease(pColorRef);
+        SafeRelease(pColorFrame);
+        SafeRelease(pMultiArgs);
+
+        bool captureImg = mIsScanDepth && (mImageInterval > 0) && (mDepthId % mImageInterval == 0);
+        GPP::PointCloud* grid = new GPP::PointCloud;
+        grid->InitGrid(mDepthWidth, mDepthHeight);
+        grid->SetHasColor(true);
+        std::vector<std::pair<short, short> > depthMap;
+        for (int wid = 0; wid < mDepthWidth; wid++)
+        {
+            for (int hid = 0; hid < mDepthHeight; hid++)
+            {
+                const CameraSpacePoint& point = depthPoints.at(hid * mDepthWidth + wid);
+                if (point.Z > mBBoxMin[2] && point.Z < mBBoxMax[2] &&
+                    point.X > mBBoxMin[0] && point.X < mBBoxMax[0] &&
+                    point.Y > mBBoxMin[1] && point.Y < mBBoxMax[1])
+                {
+                    const ColorSpacePoint& colorCoord = depth2ColorMaps.at(hid * mDepthWidth + wid);
+                    if (colorCoord.X < 0 || colorCoord.X >= mColorWidth || colorCoord.Y < 0 || colorCoord.Y >= mColorHeight)
+                    {
+                        continue;
+                    }
+                    grid->SetGridCoord(wid, hid, GPP::Vector3(point.X, point.Y, point.Z));
+                    RGBQUAD* pixel = pColorBuffer + (int(colorCoord.Y) * mColorWidth + int(colorCoord.X));
+                    GPP::Color4 color(pixel->rgbRed, pixel->rgbGreen, pixel->rgbBlue);
+                    grid->SetGridColor(wid, hid, GPP::Color4::Color4ToVector3(color));
+                    if (captureImg)
+                    {
+                        depthMap.push_back(std::pair<short, short>(colorCoord.X, mColorHeight - colorCoord.Y - 1));
+                    }
+                }
+            }
+        }
+        if (grid->GetPointCount() < 10)
+        {
+            GPPFREEPOINTER(grid);
             return;
         }
         if (mDepthCountAcc % 6 == 0)
         {
-            /*int pointCount = pointCloud->GetPointCount();
-            pointCloud->SetHasColor(true);
-            if (mIsScanDepth)
-            {
-                for (int pid = 0; pid < pointCount; pid += 4)
-                {
-                    pointCloud->SetPointColor(pid, GPP::ColorCoding(0.1 + (pointCloud->GetPointCoord(pid)[2] - 0.5) / 8.0));
-                }
-            }
-            else
-            {
-                for (int pid = 0; pid < pointCount; pid += 4)
-                {
-                    pointCloud->SetPointColor(pid, GPP::ColorCoding(0.6 + (pointCloud->GetPointCoord(pid)[2] - 0.5) / 8.0));
-                }
-            }*/
-            RenderPointCloud(pointCloud);
+            RenderPointCloud(grid);
         }
         mDepthCountAcc++;
         if (mIsScanDepth)
@@ -289,12 +468,32 @@ namespace GHB
             ss << "./scan/depth_" << counter << ".gbg";
             std::string fileName;
             ss >> fileName;
-            GPP::ScopedLock lock(mMutex);
-            mScanedDepthList.push_back(std::pair<std::string, GPP::PointCloud*>(fileName, pointCloud));
+            {
+                GPP::ScopedLock lock(mDepthMutex);
+                mScanedDepthList.push_back(std::pair<std::string, GPP::PointCloud*>(fileName, grid));
+            }
+            if (captureImg)
+            {
+                ss.clear();
+                ss << "./scan/depth_" << counter << ".png";
+                std::string imgName;
+                ss >> imgName;
+                ss.clear();
+                ss << "./scan/depth_" << counter << ".map";
+                std::string mapName;
+                ss >> mapName;
+                RGBQUAD* colorBufferCopy = new RGBQUAD[mColorWidth * mColorHeight];
+                memcpy(colorBufferCopy, pColorBuffer, sizeof(RGBQUAD) * mColorWidth * mColorHeight);
+                cv::Mat* img = new cv::Mat(mColorHeight, mColorWidth, CV_8UC4, reinterpret_cast<uchar*>(colorBufferCopy));
+                GPP::ScopedLock lock(mImageMutex);
+                mImageList.push_back(std::pair<std::string, cv::Mat*>(imgName, img));
+                mMapList.push_back(std::pair<std::string, std::vector<std::pair<short, short> > >(mapName, depthMap));
+            }
+            mDepthId++;
         }
         else
         {
-            GPPFREEPOINTER(pointCloud);
+            GPPFREEPOINTER(grid);
         }
     }
 
@@ -339,152 +538,6 @@ namespace GHB
             manualObj->colour(color[0], color[1], color[2]);
         }
         manualObj->end();
-    }
-
-    template <class Interface>
-    static void SafeRelease(Interface *& pInterfaceToRelease)
-    {
-        if (pInterfaceToRelease)
-        {
-            pInterfaceToRelease->Release();
-            pInterfaceToRelease = NULL;
-        }
-    }
-
-    GPP::PointCloud* AppKinect2::CaptureOneDepth()
-    {
-        if (mpMultiSourceFrameReader == NULL)
-        {
-            GPPInfo << "CaptureOneDepth: mpMultiSourceFrameReader == NULL" << std::endl;
-            return NULL;
-        }
-        IMultiSourceFrameArrivedEventArgs* pMultiArgs = NULL;
-        if (!SUCCEEDED(mpMultiSourceFrameReader->GetMultiSourceFrameArrivedEventData(mMSEvent, &pMultiArgs)))
-        {
-            //GPPInfo << "CaptureOneDepth: GetMultiSourceFrameArrivedEventData failed" << std::endl;
-            return NULL;
-        }
-        IMultiSourceFrameReference* pFrameRef = NULL;
-        if (!SUCCEEDED(pMultiArgs->get_FrameReference(&pFrameRef)))
-        {
-            GPPInfo << "CaptureOneDepth: get_FrameReference failed" << std::endl;
-            return NULL;
-        }
-        IMultiSourceFrame* pMultiSourceFrame = NULL;
-        if (!SUCCEEDED(pFrameRef->AcquireFrame(&pMultiSourceFrame)))
-        {
-            GPPInfo << "CaptureOneDepth: pFrameRef->AcquireFrame failed" << std::endl;
-            return NULL;
-        }
-
-        IDepthFrameReference* pDepthRef = NULL;
-        if (!SUCCEEDED(pMultiSourceFrame->get_DepthFrameReference(&pDepthRef)))
-        {
-            GPPInfo << "CaptureOneDepth: pMultiSourceFrame->get_DepthFrameReference failed" << std::endl;
-            return NULL;
-        }
-        IDepthFrame* pDepthFrame = NULL;
-        if (!SUCCEEDED(pDepthRef->AcquireFrame(&pDepthFrame)))
-        {
-            GPPInfo << "CaptureOneDepth: pDepthRef->AcquireFrame failed" << std::endl;
-            return NULL;
-        }
-        UINT nDepthSize = 0;
-        UINT16* pDepthBuffer = NULL;
-        if (!SUCCEEDED(pDepthFrame->AccessUnderlyingBuffer(&nDepthSize, &pDepthBuffer)))
-        {
-            GPPInfo << "CaptureOneDepth: pDepthFrame->AccessUnderlyingBuffer failed" << std::endl;
-            return NULL;
-        }
-        std::vector<CameraSpacePoint> depthPoints(nDepthSize);
-        if (!SUCCEEDED(mpCoordinateMapper->MapDepthFrameToCameraSpace(nDepthSize, pDepthBuffer, 
-            nDepthSize, &(depthPoints.at(0)))))
-        {
-            GPPInfo << "CaptureOneDepth: mpCoordinateMapper->MapDepthFrameToCameraSpace failed" << std::endl;
-            return NULL;
-        }
-        std::vector<ColorSpacePoint> depth2ColorMaps(nDepthSize);
-        if (!SUCCEEDED(mpCoordinateMapper->MapDepthFrameToColorSpace(nDepthSize, pDepthBuffer,
-            nDepthSize, &(depth2ColorMaps.at(0)))))
-        {
-            GPPInfo << "CaptureOneDepth: mpCoordinateMapper->MapDepthFrameToColorSpace failed" << std::endl;
-            return NULL;
-        }
-        SafeRelease(pDepthRef);
-        SafeRelease(pDepthFrame);
-
-        IColorFrameReference* pColorRef = NULL;
-        if (!SUCCEEDED(pMultiSourceFrame->get_ColorFrameReference(&pColorRef)))
-        {
-            GPPInfo << "CaptureOneDepth: pMultiSourceFrame->get_DepthFrameReference failed" << std::endl;
-            return NULL;
-        }
-        IColorFrame* pColorFrame = NULL;
-        if (!SUCCEEDED(pColorRef->AcquireFrame(&pColorFrame)))
-        {
-            GPPInfo << "CaptureOneDepth: pColorRef->AcquireFrame failed" << std::endl;
-            return NULL;
-        }
-        ColorImageFormat imageFormat = ColorImageFormat_None;
-        if (!SUCCEEDED(pColorFrame->get_RawColorImageFormat(&imageFormat)))
-        {
-            GPPInfo << "CaptureOneDepth: get_RawColorImageFormat failed" << std::endl;
-            return NULL;
-        }
-        UINT nColorSize = 0;
-        RGBQUAD *pColorBuffer = NULL;
-        if (imageFormat == ColorImageFormat_Bgra)
-        {
-            if (!SUCCEEDED(pColorFrame->AccessRawUnderlyingBuffer(&nColorSize, reinterpret_cast<BYTE**>(&pColorBuffer))))
-            {
-                GPPInfo << "CaptureOneDepth: AccessRawUnderlyingBuffer failed" << std::endl;
-                return NULL;
-            }
-        }
-        else if (mpColorBuffer)
-        {
-            pColorBuffer = mpColorBuffer;
-            nColorSize = mColorWidth * mColorHeight * sizeof(RGBQUAD);
-            if (!SUCCEEDED(pColorFrame->CopyConvertedFrameDataToArray(nColorSize, reinterpret_cast<BYTE*>(pColorBuffer), ColorImageFormat_Bgra)))
-            {
-                GPPInfo << "CaptureOneDepth: CopyConvertedFrameDataToArray failed" << std::endl;
-                return NULL;
-            }
-        }
-        else
-        {
-            GPPInfo << "CaptureOneDepth: imageFormat != ColorImageFormat_Bgra" << std::endl;
-            return NULL;
-        }
-        SafeRelease(pColorRef);
-        SafeRelease(pColorFrame);
-        SafeRelease(pMultiArgs);
-        
-        GPP::PointCloud* grid = new GPP::PointCloud;
-        grid->InitGrid(mDepthWidth, mDepthHeight);
-        grid->SetHasColor(true);
-        for (int hid = 0; hid < mDepthHeight; hid++)
-        {
-            for (int wid = 0; wid < mDepthWidth; wid++)
-            {
-                const CameraSpacePoint& point = depthPoints.at(hid * mDepthWidth + wid);
-                if (point.Z > mBBoxMin[2] && point.Z < mBBoxMax[2] && 
-                    point.X > mBBoxMin[0] && point.X < mBBoxMax[0] && 
-                    point.Y > mBBoxMin[1] && point.Y < mBBoxMax[1])
-                {
-                    const ColorSpacePoint& colorCoord = depth2ColorMaps.at(hid * mDepthWidth + wid);
-                    if (colorCoord.X < 0 || colorCoord.X >= mColorWidth || colorCoord.Y < 0 || colorCoord.Y >= mColorHeight)
-                    {
-                        continue;
-                    }
-                    grid->SetGridCoord(wid, hid, GPP::Vector3(point.X, point.Y, point.Z));
-                    RGBQUAD* pixel = pColorBuffer + (int(colorCoord.Y) * mColorWidth + int(colorCoord.X));
-                    GPP::Color4 color(pixel->rgbRed, pixel->rgbGreen, pixel->rgbBlue);
-                    grid->SetGridColor(wid, hid, GPP::Color4::Color4ToVector3(color));
-                }
-            }
-        }
-        return grid;
     }
 
     double AppKinect2::GetTime()
