@@ -16,8 +16,6 @@
 
 namespace GPP
 {
-    extern BGL_EXPORT Int GetProcessorCount();
-
 #ifdef USECPP11
     typedef std::mutex Mutex;
 #else
@@ -81,19 +79,7 @@ namespace GPP
         TaskType mTP;
     };
 
-    class ThreadPool;
-    class BGL_EXPORT Thread
-    {
-    public:
-        Thread(ThreadPool* threadPool);
-        ErrorCode Start();
-        ErrorCode Run();
-        ~Thread();
-
-    private:
-        ThreadPool* mpThreadPool;
-    };
-
+    class Thread;
     class BGL_EXPORT ThreadPool
     {
     public:

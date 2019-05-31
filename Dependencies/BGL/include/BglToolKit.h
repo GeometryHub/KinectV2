@@ -9,10 +9,29 @@
 
 namespace GPP
 {
+    // Reset progress value before calling api
+    extern BGL_EXPORT void ResetApiProgress(void);
+
+
+    // Get progress value when running api
+    // progress value range: [0, 1]
+    extern BGL_EXPORT Real GetApiProgress(void);
+
+
+    extern BGL_EXPORT void EnableApiProgress(void);
+
+
+    extern BGL_EXPORT void DisableApiProgress(void);
+
+
     // count >= 0: 0 - it will auto-allocate thread according CPU processor count.
     extern BGL_EXPORT void SetThreadCount(Int count);
 
 
+    extern BGL_EXPORT Int GetThreadCount();
+
+
+    // scaleValue range: [0, 1.2]
     extern BGL_EXPORT Vector3 ColorCoding(Real scaleValue);
 
 
@@ -22,19 +41,19 @@ namespace GPP
     extern BGL_EXPORT void SleepThread(Real second);
 
 
-/////////////////////////////////////// Internal Use ///////////////////////////////////////
-    
-    class ThreadManager
+    // cross platform rand number
+    class BGL_EXPORT GppRand
     {
-        static ThreadManager* mpThreadManager;
-        explicit ThreadManager();
     public:
-        static ThreadManager* Get();
-        void SetThreadCount(Int count);
-        Int GetThreadCount(void) const;
-        ~ThreadManager();
+        GppRand();
+        GppRand(int seed);
+        ~GppRand();
+
+        void SetSeed(int seed);
+        int GetRand(void); // rand value >= 0
 
     private:
-        Int mThreadCount;
+        int mState;
     };
+    
 }

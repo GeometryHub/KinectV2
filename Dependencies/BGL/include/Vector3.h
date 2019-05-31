@@ -22,6 +22,7 @@ namespace GPP
         Real DistanceSquared(const Vector3& vec3) const;
         Real Normalise();
         Vector3 CrossProduct(const Vector3& vec3) const;
+        Real MaxAbs(void) const;
 
         Real   operator [] (int index) const;
         Real&  operator [] (int index);

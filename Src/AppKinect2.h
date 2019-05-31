@@ -10,6 +10,7 @@
 #include "Kinect.h"
 #include "opencv2/opencv.hpp"
 #include "BGL.h"
+#include "ThreadPool.h"
 #include <deque>
 
 namespace GHB

@@ -8,6 +8,11 @@
 #include "BglDefines.h"
 #include <fstream>
 #include <iostream>
+#ifdef LOG_STRING
+#include <sstream>
+#include <vector>
+#include <string>
+#endif 
 
 namespace GPP
 {
@@ -23,11 +28,37 @@ namespace GPP
 
 #define GPPLog(level) \
     if (level < GPP::gSystemLogLevel) ;\
-    else GPP::LogSystem::Get()->GetOFStream() 
+    else GPP::LogSystem::Get()->GetLogStream() 
 #define GPPDebug GPPLog(GPP::LOGLEVEL_DEBUG)
 #define GPPInfo GPPLog(GPP::LOGLEVEL_INFO)
 #define GPPError GPPLog(GPP::LOGLEVEL_ERROR)
 
+    extern BGL_EXPORT const bool gLogStat;
+
+#define GPPSTAT \
+    if (!gLogStat) ;\
+    else GPP::LogSystem::Get()->GetLogStream() 
+
+#ifdef LOG_STRING
+    class BGL_EXPORT LogSystem
+    {
+    private:
+        static LogSystem* mpLogSystem;
+        LogSystem();
+    public:
+        static LogSystem* Get(void);
+        ~LogSystem(void);
+        std::stringstream& GetLogStream();
+        std::vector<std::string> GetLogString();
+        void AddLogCount();
+        void Clear(void);
+    public:
+        std::stringstream mSStream;
+        std::vector<std::string> mStringList;
+        Int mCurLogCount;
+        static Int mMaxLogCount;
+    };
+#else
     class BGL_EXPORT LogSystem
     {
     private:
@@ -37,8 +68,9 @@ namespace GPP
         static void SetLogFileName(std::string logFileName);
         static LogSystem* Get(void);
         ~LogSystem(void);
-        std::ofstream& GetOFStream();
+        std::ofstream& GetLogStream();
     public:
         std::ofstream mOFStream;
     };
+#endif
 }

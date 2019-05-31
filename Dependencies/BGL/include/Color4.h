@@ -6,7 +6,7 @@
 ====================================================================================================*/
 
 #pragma once
-#include "IPointCloud.h"
+#include "Vector3.h"
 
 namespace GPP
 {
@@ -45,5 +45,31 @@ namespace GPP
     extern BGL_EXPORT Vector3 ConvertHSV2RGB(const Vector3& hsv);
 
 
-    extern BGL_EXPORT ErrorCode UnifyPointCloudColor(IPointCloud* pointCloud, Real* h, Real* s, Real* v);
+    // gray = rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114
+    extern BGL_EXPORT Real ConvertColor2Gray(const Vector3& rgb);
+
+
+    class BGL_EXPORT ImageColorId
+    {
+    public:
+        ImageColorId();
+        ImageColorId(Int imageIndex, Int localX, Int localY);
+        void Set(Int imageIndex, Int localX, Int localY);
+        void Set(const ImageColorId& colorId);
+
+        Int GetImageIndex() const;
+        void SetImageIndex(Int imageIndex);
+
+        Int GetLocalX() const;
+        void SetLocalX(Int localX);
+
+        Int GetLocalY() const;
+        void SetLocalY(Int localY);
+
+    private:
+        Int mImageIndex;    // which image the color belongs to
+        Int mLocalX;        // the local corresponding image position X, the value should be in [0, imageWidth - 1]
+        Int mLocalY;        // the local corresponding image position Y, the value should be in [0, imageHeight - 1]
+    };
+
 }

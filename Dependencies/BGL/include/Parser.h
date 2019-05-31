@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <Vector3.h>
+#include <sstream>
 
 namespace GPP
 {
@@ -16,6 +17,7 @@ namespace GPP
     class IGridPointCloud;
     class TriMesh;
     class ITriMesh;
+    class IQuadMesh;
     class BGL_EXPORT Parser
     {
     public:
@@ -23,17 +25,25 @@ namespace GPP
         ~Parser();
 
         // fileName should contains the path name and fileName, like ../Models/PointCloud.asc or C:/Models/PointCloud.asc
-        // Support format: asc, obj
+        // Support format: asc, obj, gbg, gtg, gpc, txt, xyz, ply
         static PointCloud* ImportPointCloud(std::string fileName);
 
 
         // fileName should contains the path name and fileName, like ../Models/PointCloud.asc or C:/Models/PointCloud.asc
-        // Support format: obj, stl, off, ply
+        // Support format: obj, stl, off, ply, gpt, gmesh
         static TriMesh* ImportTriMesh(std::string fileName);
 
 
+        // gmesh format
+        static TriMesh* ImportTriMeshFromStream(std::stringstream& ss);
+
+
+        // Support format: gline
+        static ErrorCode ImportLineSegments(std::string fileName, std::vector<Vector3>& startCoords, std::vector<Vector3>& endCoords);
+
+
         // fileName should contains the path name and fileName, like ../Models/PointCloud.asc or C:/Models/PointCloud.asc
-        // Support format: obj, asc, ply
+        // Support format: obj, asc, ply, gpc, gbp
         static ErrorCode ExportPointCloud(std::string fileName, const IPointCloud* pointCloud);
 
 
@@ -43,21 +53,17 @@ namespace GPP
 
 
         // fileName should contains the path name and fileName, like ../Models/PointCloud.asc or C:/Models/PointCloud.asc
-        // Support format: obj, stl, ply
+        // Support format: obj, stl, ply, off, gpt, gmesh
         static ErrorCode ExportTriMesh(std::string fileName, const ITriMesh* triMesh);
 
 
-        /////////////////////////////////////////////// Internal Use ///////////////////////////////////////////////
+        // fileName should contains the path name and fileName, like ../Models/PointCloud.asc or C:/Models/PointCloud.asc
+        // Support format: obj
+        static ErrorCode ExportQuadMesh(std::string fileName, const IQuadMesh* quadMesh);
 
-        // meshColor == NULL: use vertex color
-        static ErrorCode ExportTriMeshToPovray(std::string fileName, const TriMesh* triMesh, Vector3* meshColor);
 
-        // Not test yet
-        static ErrorCode ExportTextureTriMeshToPovray(std::string fileName, const TriMesh* triMesh);
-
-        // line segment is a cylinder
-        // radius is cylinder radius
-        static ErrorCode ExportLineSegmentToPovray(std::string fileName, const std::vector<Vector3>& lineSegment, Real radius, Vector3 color);
-
+        // Support format: gline
+        static ErrorCode ExportLineSegments(std::string fileName, const std::vector<Vector3>& startCoords, const std::vector<Vector3>& endCoords,
+            const Int* validPointCount);
     };
 }

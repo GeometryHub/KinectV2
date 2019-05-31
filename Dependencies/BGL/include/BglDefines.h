@@ -37,6 +37,13 @@
 #define GPP_API_IS_NOT_AVAILABLE -6
 #define GPP_API_IS_NOT_DEFINE -8
 
+// ApiName
+#define POINT_TRIANGULATION_CONSTRAINED_DELAUNAY_2D  100000
+#define MESH_SPLIT_SPLITBYLINE 100001
+#define MESH_SPLIT_SPLITBYPLANE 100002
+#define CURVE_SMOOTHCURVEONMESH 100003
+#define CURVE_SMOOTHCURVECROSSMESH 100004
+
 #define REALDOUBLE
 namespace GPP
 {
@@ -52,6 +59,7 @@ namespace GPP
     typedef long long LongInt;
     typedef unsigned long long ULongInt;
     typedef int ErrorCode;
+    typedef int ApiName;
     extern BGL_EXPORT const Real REAL_TOL;
     extern BGL_EXPORT const Real REAL_LARGE;
     extern BGL_EXPORT const Short SHORT_LARGE;
@@ -60,4 +68,5 @@ namespace GPP
     extern BGL_EXPORT const UInt UINT_LARGE;    
     extern BGL_EXPORT const Real GPP_PI;
     extern BGL_EXPORT const Real ONE_RADIAN;
+    extern BGL_EXPORT const Real POFPRECISION;
 }
