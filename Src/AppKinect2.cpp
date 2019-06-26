@@ -69,6 +69,7 @@ namespace GHB
         mIsScanDepth(false),
         mScanedDepthList(),
         mImageList(),
+        mImageDataList(),
         mMapList(),
         mDepthMutex(),
         mImageMutex(),
@@ -172,13 +173,20 @@ namespace GHB
                 continue;
             }
             cv::Mat* image;
+            RGBQUAD* imageData;
             std::vector<std::pair<short, short> > map;
             std::string imageName, mapName;
             {
                 GPP::ScopedLock lock(mImageMutex);
+                if (mImageList.empty())
+                {
+                    continue;
+                }
                 image = mImageList.at(0).second;
                 imageName = mImageList.at(0).first;
                 mImageList.pop_front();
+                imageData = mImageDataList.at(0);
+                mImageDataList.pop_front();
                 map = mMapList.at(0).second;
                 mapName = mMapList.at(0).first;
                 mMapList.pop_front();
@@ -186,6 +194,7 @@ namespace GHB
             }
             cv::imwrite(imageName, *image);
             GPPFREEPOINTER(image);
+            GPPFREEARRAY(imageData);
 
             std::stringstream mapStream;
             for (std::vector<std::pair<short, short> >::const_iterator itr = map.begin(); itr != map.end(); ++itr)
@@ -291,7 +300,7 @@ namespace GHB
         _beginthreadex(NULL, 0, RunDepthThread, (void *)this, 0, NULL);
         _beginthreadex(NULL, 0, RunDepthThread, (void *)this, 0, NULL);
         _beginthreadex(NULL, 0, RunImageThread, (void *)this, 0, NULL);
-        if (mImageInterval < 4)
+        if (mImageInterval > 0 && mImageInterval < 5)
         {
             _beginthreadex(NULL, 0, RunImageThread, (void *)this, 0, NULL);
         }
@@ -312,7 +321,7 @@ namespace GHB
         {
             std::cout << "\r capture fps=" << int(double(mDepthCountAcc) / mDepthTimeAcc) <<
                 " , depth fps=" << int(double(mExportDepthAcc) / mDepthTimeAcc) <<
-                ", image fps=" << int(double(mExportImageAcc) / mDepthTimeAcc);
+                ", image fps=" << int(double(mExportImageAcc) / mDepthTimeAcc) << "    ";
             mDepthTimeAcc = 0;
             mDepthCountAcc = 0;
             mExportDepthAcc = 0;
@@ -502,6 +511,7 @@ namespace GHB
                 cv::Mat* img = new cv::Mat(mColorHeight, mColorWidth, CV_8UC4, reinterpret_cast<uchar*>(colorBufferCopy));
                 GPP::ScopedLock lock(mImageMutex);
                 mImageList.push_back(std::pair<std::string, cv::Mat*>(imgName, img));
+                mImageDataList.push_back(colorBufferCopy);
                 mMapList.push_back(std::pair<std::string, std::vector<std::pair<short, short> > >(mapName, depthMap));
             }
             mDepthId++;

@@ -69,6 +69,7 @@ namespace GHB
         bool mIsScanDepth;
         std::deque<std::pair<std::string, GPP::PointCloud*> > mScanedDepthList;
         std::deque<std::pair<std::string, cv::Mat*> > mImageList;
+        std::deque<RGBQUAD*> mImageDataList;
         std::deque<std::pair<std::string, std::vector<std::pair<short, short> > > > mMapList;
         GPP::Mutex mDepthMutex;
         GPP::Mutex mImageMutex;
