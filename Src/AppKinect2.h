@@ -62,7 +62,8 @@ namespace GHB
         int mDepthHeight;
         int mColorWidth;
         int mColorHeight;
-        int mExportCountAcc;
+        int mExportDepthAcc;
+        int mExportImageAcc;
         int mDepthCountAcc;
         double mDepthTimeAcc;
         bool mIsScanDepth;

@@ -62,7 +62,8 @@ namespace GHB
         mDepthHeight(424),
         mColorWidth(1920),
         mColorHeight(1080),
-        mExportCountAcc(0),
+        mExportDepthAcc(0),
+        mExportImageAcc(0),
         mDepthCountAcc(0),
         mDepthTimeAcc(0),
         mIsScanDepth(false),
@@ -97,10 +98,12 @@ namespace GHB
     {
         if (arg.key == OIS::KC_S)
         {
+            MessageBox(NULL, "Scan Mode", "Tip", MB_OK);
             mIsScanDepth = true;
         }
         else if (arg.key == OIS::KC_V)
         {
+            MessageBox(NULL, "View Mode", "Tip", MB_OK);
             mIsScanDepth = false;
         }
         return true;
@@ -152,7 +155,7 @@ namespace GHB
                 fileName = mScanedDepthList.at(0).first;
                 curDepth = mScanedDepthList.at(0).second;
                 mScanedDepthList.pop_front();
-                mExportCountAcc++;
+                mExportDepthAcc++;
             }
             curDepth->RemoveOuterBlankGrids();
             GPP::Parser::ExportGridPointCloud(fileName, curDepth);
@@ -179,15 +182,21 @@ namespace GHB
                 map = mMapList.at(0).second;
                 mapName = mMapList.at(0).first;
                 mMapList.pop_front();
+                mExportImageAcc++;
             }
             cv::imwrite(imageName, *image);
             GPPFREEPOINTER(image);
-            std::ofstream mapOut(mapName.c_str());
+
+            std::stringstream mapStream;
             for (std::vector<std::pair<short, short> >::const_iterator itr = map.begin(); itr != map.end(); ++itr)
             {
-                mapOut << itr->first << " " << itr->second << "\n";
+                mapStream << itr->first << " " << itr->second << "\n";
             }
+            std::ofstream mapOut(mapName.c_str());
+            std::string mapString = mapStream.str();
+            mapOut << mapString.c_str() << std::endl;
             mapOut.close();
+
         }
     }
 
@@ -282,6 +291,10 @@ namespace GHB
         _beginthreadex(NULL, 0, RunDepthThread, (void *)this, 0, NULL);
         _beginthreadex(NULL, 0, RunDepthThread, (void *)this, 0, NULL);
         _beginthreadex(NULL, 0, RunImageThread, (void *)this, 0, NULL);
+        if (mImageInterval < 4)
+        {
+            _beginthreadex(NULL, 0, RunImageThread, (void *)this, 0, NULL);
+        }
     }
 
     void AppKinect2::Update(double timeElapsed)
@@ -297,11 +310,13 @@ namespace GHB
         }
         if (mDepthTimeAcc > 1.0)
         {
-            std::cout << "\r capture fps=" << int(double(mDepthCountAcc) / mDepthTimeAcc) << 
-                " , export fps=" << int(double(mExportCountAcc) / mDepthTimeAcc);
+            std::cout << "\r capture fps=" << int(double(mDepthCountAcc) / mDepthTimeAcc) <<
+                " , depth fps=" << int(double(mExportDepthAcc) / mDepthTimeAcc) <<
+                ", image fps=" << int(double(mExportImageAcc) / mDepthTimeAcc);
             mDepthTimeAcc = 0;
             mDepthCountAcc = 0;
-            mExportCountAcc = 0;
+            mExportDepthAcc = 0;
+            mExportImageAcc = 0;
         }
     }
 
