@@ -30,6 +30,7 @@ namespace GHB
 
         void SetBBox(const GPP::Vector3& bboxMin, const GPP::Vector3& bboxMax);
         void SetImageInterval(int imageInterval);
+        void SetImageScale(double scale);
         void ExportDepthData(void);
         void ExportImageData(void);
 
@@ -78,5 +79,6 @@ namespace GHB
         RGBQUAD* mpColorBuffer;
         int mImageInterval;
         int mDepthId;
+        double mImageScale;
     };
 }

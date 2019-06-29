@@ -77,7 +77,8 @@ namespace GHB
         mBBoxMax(5, 5, 5),
         mpColorBuffer(NULL),
         mImageInterval(0),
-        mDepthId(0)
+        mDepthId(0),
+        mImageScale(1)
     {
         mpColorBuffer = new RGBQUAD[mColorWidth * mColorHeight];
     }
@@ -137,30 +138,43 @@ namespace GHB
         mImageInterval = imageInterval;
     }
 
+    void AppKinect2::SetImageScale(double scale)
+    {
+        mImageScale = scale;
+        GPPInfo << "mImageScale = " << mImageScale << std::endl;
+    }
+
     void AppKinect2::ExportDepthData()
     {
         while (mAppRunning)
         {
-            if (mScanedDepthList.empty())
-            {
-                continue;
-            }
             std::string fileName;
             GPP::PointCloud* curDepth = NULL;
             {
                 GPP::ScopedLock lock(mDepthMutex);
-                if (mScanedDepthList.empty())
+                if (!mScanedDepthList.empty())
                 {
-                    continue;
+                    fileName = mScanedDepthList.at(0).first;
+                    curDepth = mScanedDepthList.at(0).second;
+                    mScanedDepthList.pop_front();
+                    mExportDepthAcc++;
                 }
-                fileName = mScanedDepthList.at(0).first;
-                curDepth = mScanedDepthList.at(0).second;
-                mScanedDepthList.pop_front();
-                mExportDepthAcc++;
             }
+            if (curDepth == NULL)
+            {
+                GPP::SleepThread(0.03);
+                continue;
+            }
+            double startTime = GPP::Profiler::GetTime();
+            curDepth->SetHasColor(false);
             curDepth->RemoveOuterBlankGrids();
             GPP::Parser::ExportGridPointCloud(fileName, curDepth);
             GPPFREEPOINTER(curDepth);
+            double exportDepthTime = GPP::Profiler::GetTime() - startTime;
+            if (exportDepthTime > 0.2)
+            {
+                GPPInfo << "    exportDepthTime=" << exportDepthTime << std::endl;
+            }
         }
     }
 
@@ -168,44 +182,60 @@ namespace GHB
     {
         while (mAppRunning)
         {
-            if (mImageList.empty())
-            {
-                continue;
-            }
-            cv::Mat* image;
-            RGBQUAD* imageData;
+            cv::Mat* image = NULL;
+            RGBQUAD* imageData = NULL;
             std::vector<std::pair<short, short> > map;
             std::string imageName, mapName;
             {
                 GPP::ScopedLock lock(mImageMutex);
-                if (mImageList.empty())
+                if (!mImageList.empty())
                 {
-                    continue;
+                    image = mImageList.at(0).second;
+                    imageName = mImageList.at(0).first;
+                    mImageList.pop_front();
+                    imageData = mImageDataList.at(0);
+                    mImageDataList.pop_front();
+                    map = mMapList.at(0).second;
+                    mapName = mMapList.at(0).first;
+                    mMapList.pop_front();
+                    mExportImageAcc++;;
                 }
-                image = mImageList.at(0).second;
-                imageName = mImageList.at(0).first;
-                mImageList.pop_front();
-                imageData = mImageDataList.at(0);
-                mImageDataList.pop_front();
-                map = mMapList.at(0).second;
-                mapName = mMapList.at(0).first;
-                mMapList.pop_front();
-                mExportImageAcc++;
             }
-            cv::imwrite(imageName, *image);
+            if (image == NULL)
+            {
+                GPP::SleepThread(0.03);
+                continue;
+            }
+            double startTime = GPP::Profiler::GetTime();
+            if (mImageScale < 1.0 - GPP::REAL_TOL)
+            {
+                cv::Mat resizeImg(image->rows * mImageScale, image->cols * mImageScale, CV_8UC4);
+                cv::resize(*image, resizeImg, cv::Size(image->cols * mImageScale, image->rows * mImageScale));
+                cv::imwrite(imageName, resizeImg);
+            }
+            else
+            {
+                cv::imwrite(imageName, *image);
+            }
             GPPFREEPOINTER(image);
             GPPFREEARRAY(imageData);
 
-            std::stringstream mapStream;
-            for (std::vector<std::pair<short, short> >::const_iterator itr = map.begin(); itr != map.end(); ++itr)
+            FILE *fp = fopen(mapName.c_str(), "wb");
+            int mapSize = map.size();
+            fwrite(&mapSize, sizeof(int), 1, fp);
+            for (std::vector<std::pair<short, short> >::iterator iitr = map.begin(); iitr != map.end(); ++iitr)
             {
-                mapStream << itr->first << " " << itr->second << "\n";
+                iitr->first *= mImageScale;
+                iitr->second *= mImageScale;
+                fwrite(&(iitr->first), sizeof(short), 1, fp);
+                fwrite(&(iitr->second ), sizeof(short), 1, fp);
             }
-            std::ofstream mapOut(mapName.c_str());
-            std::string mapString = mapStream.str();
-            mapOut << mapString.c_str() << std::endl;
-            mapOut.close();
-
+            fclose(fp);
+            double exportImageTime = GPP::Profiler::GetTime() - startTime;
+            if (exportImageTime > 0.2)
+            {
+                GPPInfo << "        exportImageTime=" << exportImageTime << std::endl;
+            }
         }
     }
 
@@ -319,13 +349,23 @@ namespace GHB
         }
         if (mDepthTimeAcc > 1.0)
         {
+            int exportDepthAcc = 0;
+            {
+                GPP::ScopedLock lock(mDepthMutex);
+                exportDepthAcc = mExportDepthAcc;
+                mExportDepthAcc = 0;
+            }
+            int exportImageAcc = 0;
+            {
+                GPP::ScopedLock lock(mImageMutex);
+                exportImageAcc = mExportImageAcc;
+                mExportImageAcc = 0;
+            }
             std::cout << "\r capture fps=" << int(double(mDepthCountAcc) / mDepthTimeAcc) <<
-                " , depth fps=" << int(double(mExportDepthAcc) / mDepthTimeAcc) <<
-                ", image fps=" << int(double(mExportImageAcc) / mDepthTimeAcc) << "    ";
+                " , depth fps=" << int(double(exportDepthAcc) / mDepthTimeAcc) <<
+                ", image fps=" << int(double(exportImageAcc) / mDepthTimeAcc) << "    ";
             mDepthTimeAcc = 0;
             mDepthCountAcc = 0;
-            mExportDepthAcc = 0;
-            mExportImageAcc = 0;
         }
     }
 
@@ -496,6 +536,7 @@ namespace GHB
                 GPP::ScopedLock lock(mDepthMutex);
                 mScanedDepthList.push_back(std::pair<std::string, GPP::PointCloud*>(fileName, grid));
             }
+            GPP::SleepThread(0.001);
             if (captureImg)
             {
                 ss.clear();
@@ -503,16 +544,19 @@ namespace GHB
                 std::string imgName;
                 ss >> imgName;
                 ss.clear();
-                ss << "./scan/depth_" << counter << ".map";
+                ss << "./scan/depth_" << counter << ".bmap";
                 std::string mapName;
                 ss >> mapName;
                 RGBQUAD* colorBufferCopy = new RGBQUAD[mColorWidth * mColorHeight];
                 memcpy(colorBufferCopy, pColorBuffer, sizeof(RGBQUAD) * mColorWidth * mColorHeight);
                 cv::Mat* img = new cv::Mat(mColorHeight, mColorWidth, CV_8UC4, reinterpret_cast<uchar*>(colorBufferCopy));
-                GPP::ScopedLock lock(mImageMutex);
-                mImageList.push_back(std::pair<std::string, cv::Mat*>(imgName, img));
-                mImageDataList.push_back(colorBufferCopy);
-                mMapList.push_back(std::pair<std::string, std::vector<std::pair<short, short> > >(mapName, depthMap));
+                {
+                    GPP::ScopedLock lock(mImageMutex);
+                    mImageList.push_back(std::pair<std::string, cv::Mat*>(imgName, img));
+                    mImageDataList.push_back(colorBufferCopy);
+                    mMapList.push_back(std::pair<std::string, std::vector<std::pair<short, short> > >(mapName, depthMap));
+                }
+                GPP::SleepThread(0.001);
             }
             mDepthId++;
         }
