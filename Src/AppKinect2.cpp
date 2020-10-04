@@ -166,7 +166,7 @@ namespace GHB
                 continue;
             }
             double startTime = GPP::Profiler::GetTime();
-            curDepth->SetHasColor(false);
+            //curDepth->SetHasColor(false);
             curDepth->RemoveOuterBlankGrids();
             GPP::Parser::ExportGridPointCloud(fileName, curDepth);
             GPPFREEPOINTER(curDepth);
